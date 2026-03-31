@@ -10,12 +10,18 @@ class DFAMatcher:
                 continue
             self._automaton.add_word(
                 entry["word"],
-                {"word": entry["word"], "category": entry.get("category", ""), "risk_level": entry["risk_level"]}
+                {"word": entry["word"], "category": entry.get("category", ""), "risk_level": entry.get("risk_level", 1)}
             )
         if len(self._automaton) > 0:
             self._automaton.make_automaton()
 
     def match(self, text: str) -> List[MatchedWord]:
+        """Return one MatchedWord per unique word found in text.
+
+        Deduplication is intentional: risk scoring requires knowing *which*
+        words appear in a sentence, not how many times each appears. Only
+        the first occurrence position is recorded.
+        """
         if len(self._automaton) == 0:
             return []
         results = []
