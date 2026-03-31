@@ -1,26 +1,30 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.db.database import init_db
 import os
 
-app = FastAPI(title="逐字稿风险审查工具")
-
-@app.on_event("startup")
-def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
     _seed_if_needed()
+    yield
+
+app = FastAPI(title="逐字稿风险审查工具", lifespan=lifespan)
 
 def _seed_if_needed():
     from app.db.database import SessionLocal
     from app.db.models import WordlistEntry
     from app.db.seed import seed_from_file
     db = SessionLocal()
-    if db.query(WordlistEntry).count() == 0:
-        base = os.path.join(os.path.dirname(__file__), "../wordlist/houbb_base.txt")
-        if os.path.exists(base):
-            seed_from_file(db, base)
-    db.close()
+    try:
+        if db.query(WordlistEntry).count() == 0:
+            base = os.path.join(os.path.dirname(__file__), "../wordlist/houbb_base.txt")
+            if os.path.exists(base):
+                seed_from_file(db, base)
+    finally:
+        db.close()
 
 from app.api import review, wordlist, rules, history
 app.include_router(review.router, prefix="/api")
@@ -34,4 +38,8 @@ if os.path.exists(static_dir):
 
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(static_dir, "index.html"))
+    index_path = os.path.join(static_dir, "index.html")
+    if not os.path.exists(index_path):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "Frontend not built"}, status_code=404)
+    return FileResponse(index_path)

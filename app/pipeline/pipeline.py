@@ -11,6 +11,9 @@ from app.db.models import WordlistEntry, Rule
 def run_pipeline(text: str, doc_type: str, db: Session) -> List[SentenceResult]:
     """Run the full risk review pipeline on a text.
 
+    doc_type is accepted for future use (e.g. different rule sets per type) but not
+    currently applied to rule selection.
+
     1. Preprocess (split sentences)
     2. DFA match against enabled wordlist
     3. Rule engine (upgrades risk level only)
