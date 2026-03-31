@@ -40,10 +40,7 @@ else
 fi
 
 echo "[setup] 安装 nginx 站点配置..."
-cp /opt/sensitive-word/deploy/nginx_sensitive.conf /etc/nginx/sites-available/sensitive-word
-ln -sf /etc/nginx/sites-available/sensitive-word /etc/nginx/sites-enabled/sensitive-word
-# 禁用 nginx 默认站点（占用 80 端口，不影响 8001）
-rm -f /etc/nginx/sites-enabled/default
+cp /opt/sensitive-word/deploy/nginx_sensitive.conf /etc/nginx/conf.d/sensitive-word.conf
 
 if [ -n "$HTPASSWD_PASS" ]; then
     echo "[setup] 创建 Basic Auth 密码文件（用户名: admin）..."
