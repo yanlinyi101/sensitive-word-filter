@@ -58,6 +58,8 @@ def main():
     parser = argparse.ArgumentParser(description="敏感词工具部署脚本")
     parser.add_argument("--first", action="store_true",
                         help="首次部署：上传词表、安装依赖、注册并启动服务")
+    parser.add_argument("--htpasswd", default="",
+                        help="首次部署时设置 nginx Basic Auth 密码（用户名固定为 admin）")
     args = parser.parse_args()
 
     print("[1/3] 打包文件")
@@ -83,8 +85,9 @@ def main():
 
     print("\n[3/3] 解压并重启服务")
     if args.first:
+        htpasswd_arg = args.htpasswd if args.htpasswd else ""
         remote_cmd = " && ".join([
-            f"bash {REMOTE_DIR}/deploy/setup_server.sh",
+            f"bash {REMOTE_DIR}/deploy/setup_server.sh {htpasswd_arg}",
             f"tar -xzf /tmp/deploy.tar.gz -C {REMOTE_DIR}",
             f"rm /tmp/deploy.tar.gz",
             f"cd {REMOTE_DIR} && venv/bin/pip install -q -r requirements.txt",
@@ -116,21 +119,28 @@ def main():
         print("""
 后续步骤：
 
-1. 确认腾讯云安全组已放行 TCP 8001（如未操作请登录控制台添加）
+1. 确认腾讯云安全组已放行 TCP 8001（控制台手动添加）
+   注意：uvicorn 已改为监听 127.0.0.1:8002（仅内部），对外只开放 8001（nginx）
 
-2. 确认 .env 已创建（若未创建请执行）：
+2. 确认 .env 已创建（含 ADMIN_PASSWORD 用于熔断重置）：
    ssh -i "{key}" {host}
    cat > /opt/sensitive-word/.env << 'EOF'
    GEMINI_API_KEY=你的密钥
    DATABASE_URL=sqlite:////opt/sensitive-word/data/app.db
+   ADMIN_PASSWORD=你的管理密码
+   LLM_DAILY_LIMIT=300
+   BURST_LIMIT=30
+   BURST_WINDOW_SECONDS=600
    EOF
    systemctl restart sensitive-word
 
-3. 导入词库（约 65000 条，需等待约 30 秒）：
-   ssh -i "{key}" {host} \\
-     'cd /opt/sensitive-word && venv/bin/python -m app.db.seed'
+3. 若未在部署时设置 Basic Auth 密码，手动创建：
+   htpasswd -bc /etc/nginx/.htpasswd_sensitive admin <密码>
+   systemctl reload nginx
 
-4. 访问：http://118.25.104.84:8001
+4. 访问：http://118.25.104.84:8001（浏览器弹出密码框）
+   熔断状态查看：GET http://118.25.104.84:8001/api/admin/status
+   手动重置熔断：POST http://118.25.104.84:8001/api/admin/reset?password=<ADMIN_PASSWORD>
 """.format(key=SSH_KEY, host=SSH_HOST))
 
 

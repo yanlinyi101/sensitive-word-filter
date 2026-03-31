@@ -4,6 +4,7 @@ import os
 from typing import List
 import google.generativeai as genai
 from app.pipeline.types import SentenceResult
+from app.utils.rate_guard import rate_guard
 
 # NOTE: genai.configure() is a module-level side effect. Only one LLMReviewer
 # should be active per process — constructing a second instance with a different
@@ -61,6 +62,9 @@ class LLMReviewer:
         return sentences
 
     def _call_with_retry(self, prompt: str):
+        if not rate_guard.llm_allowed():
+            return None
+        rate_guard.record_llm_call()
         for attempt in range(3):
             try:
                 return self._model.generate_content(prompt).text

@@ -8,7 +8,7 @@ WorkingDirectory=/opt/sensitive-word
 EnvironmentFile=/opt/sensitive-word/.env
 ExecStart=/opt/sensitive-word/venv/bin/uvicorn app.main:app \
     --host 127.0.0.1 \
-    --port 8001 \
+    --port 8002 \
     --workers 1 \
     --log-level info
 Restart=always
