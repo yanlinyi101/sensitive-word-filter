@@ -1,5 +1,6 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 from sqlalchemy.orm import Session
 from app.db.database import get_db
@@ -15,6 +16,15 @@ class RuleCreate(BaseModel):
     priority: int = 0
     enabled: bool = True
 
+    @field_validator("conditions")
+    @classmethod
+    def validate_conditions_json(cls, v):
+        try:
+            json.loads(v)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"conditions must be valid JSON: {e}")
+        return v
+
 class RuleUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -22,6 +32,15 @@ class RuleUpdate(BaseModel):
     risk_level: Optional[int] = None
     priority: Optional[int] = None
     enabled: Optional[bool] = None
+
+    @field_validator("conditions")
+    @classmethod
+    def validate_conditions_json(cls, v):
+        try:
+            json.loads(v)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"conditions must be valid JSON: {e}")
+        return v
 
 def _serialize(r: Rule):
     return {"id": r.id, "name": r.name, "description": r.description,
@@ -32,7 +51,7 @@ def _serialize(r: Rule):
 def list_rules(db: Session = Depends(get_db)):
     return [_serialize(r) for r in db.query(Rule).order_by(Rule.priority.desc()).all()]
 
-@router.post("/rules")
+@router.post("/rules", status_code=201)
 def create_rule(body: RuleCreate, db: Session = Depends(get_db)):
     rule = Rule(name=body.name, description=body.description, conditions=body.conditions,
                 risk_level=body.risk_level, priority=body.priority, enabled=body.enabled)

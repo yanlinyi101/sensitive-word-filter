@@ -14,28 +14,32 @@ class ReviewRequest(BaseModel):
 
 @router.post("/review")
 def review(req: ReviewRequest, db: Session = Depends(get_db)):
-    results = run_pipeline(req.text, req.doc_type, db)
+    try:
+        results = run_pipeline(req.text, req.doc_type, db)
 
-    session = ReviewSession(raw_text=req.text, doc_type=req.doc_type)
-    db.add(session)
-    db.flush()
+        session = ReviewSession(raw_text=req.text, doc_type=req.doc_type)
+        db.add(session)
+        db.flush()
 
-    for r in results:
-        db.add(SentenceResultDB(
-            session_id=session.id,
-            sentence_index=r.index,
-            text=r.text,
-            risk_level=r.risk_level,
-            matched_words=json.dumps(
-                [{"word": m.word, "category": m.category, "risk_level": m.risk_level}
-                 for m in r.matched_words],
-                ensure_ascii=False
-            ),
-            triggered_rules=json.dumps(r.triggered_rules, ensure_ascii=False),
-            llm_confirmed_risk=r.llm_confirmed_risk or "skipped",
-            llm_suggestion=r.llm_suggestion or "",
-        ))
-    db.commit()
+        for r in results:
+            db.add(SentenceResultDB(
+                session_id=session.id,
+                sentence_index=r.index,
+                text=r.text,
+                risk_level=r.risk_level,
+                matched_words=json.dumps(
+                    [{"word": m.word, "category": m.category, "risk_level": m.risk_level}
+                     for m in r.matched_words],
+                    ensure_ascii=False
+                ),
+                triggered_rules=json.dumps(r.triggered_rules, ensure_ascii=False),
+                llm_confirmed_risk=r.llm_confirmed_risk or "skipped",
+                llm_suggestion=r.llm_suggestion or "",
+            ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return {
         "session_id": session.id,

@@ -15,7 +15,7 @@ def test_create_rule(client):
         "name": "医疗夸大", "description": "检测夸大功效",
         "conditions": VALID_CONDITIONS, "risk_level": 3
     })
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     assert resp.json()["name"] == "医疗夸大"
 
 def test_update_rule_enabled(client):

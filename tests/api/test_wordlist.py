@@ -5,7 +5,7 @@ def test_list_wordlist_empty(client):
 
 def test_create_word(client):
     resp = client.post("/api/wordlist", json={"word": "根治", "category": "医疗", "risk_level": 3})
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     data = resp.json()
     assert data["word"] == "根治"
     assert data["id"] is not None

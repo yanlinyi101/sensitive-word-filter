@@ -31,7 +31,7 @@ def list_words(search: str = "", page: int = 1, page_size: int = 50, db: Session
     items = q.offset((page - 1) * page_size).limit(page_size).all()
     return {"total": total, "items": [_serialize(e) for e in items]}
 
-@router.post("/wordlist")
+@router.post("/wordlist", status_code=201)
 def create_word(body: WordCreate, db: Session = Depends(get_db)):
     if db.query(WordlistEntry).filter_by(word=body.word).first():
         raise HTTPException(status_code=409, detail="词条已存在")
