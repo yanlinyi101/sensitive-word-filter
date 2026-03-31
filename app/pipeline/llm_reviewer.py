@@ -5,6 +5,10 @@ from typing import List
 import google.generativeai as genai
 from app.pipeline.types import SentenceResult
 
+# NOTE: genai.configure() is a module-level side effect. Only one LLMReviewer
+# should be active per process — constructing a second instance with a different
+# api_key will silently overwrite the first.
+
 _PROMPT = """你是视频内容审核专家。对以下句子进行风险复核，判断在上下文中是否真的有风险，并给出改写建议。
 
 返回纯 JSON（不含其他内容）：
@@ -29,8 +33,8 @@ class LLMReviewer:
             {
                 "index": s.index,
                 "text": s.text,
-                "context_before": all_sentences[s.index - 1] if s.index > 0 else "",
-                "context_after": all_sentences[s.index + 1] if s.index < len(all_sentences) - 1 else "",
+                "context_before": all_sentences[s.index - 1] if 0 < s.index < len(all_sentences) else "",
+                "context_after": all_sentences[s.index + 1] if s.index + 1 < len(all_sentences) else "",
                 "matched_words": [m.word for m in s.matched_words],
             }
             for s in sentences

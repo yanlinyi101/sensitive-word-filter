@@ -16,7 +16,10 @@ class RuleEngine:
         max_risk = 0
         triggered = []
         for rule in sorted(self._rules, key=lambda r: -r.get("priority", 0)):
-            config = json.loads(rule["conditions"])
+            try:
+                config = json.loads(rule["conditions"])
+            except json.JSONDecodeError:
+                continue
             if self._check_conditions(text, matched_words, config):
                 triggered.append(rule["name"])
                 max_risk = max(max_risk, rule["risk_level"])
