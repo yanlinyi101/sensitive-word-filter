@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>逐字稿风险审查工具</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="/static/app.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+    .nav { background: #1a1a2e; color: #fff; padding: 12px 24px; display: flex; gap: 20px; align-items: center; }
+    .nav h1 { font-size: 1.1rem; margin-right: auto; }
+    .nav button { background: none; border: none; color: #aaa; cursor: pointer; font-size: 0.9rem; padding: 4px 10px; border-radius: 4px; }
+    .nav button.active { color: #fff; background: #16213e; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.1); margin-bottom: 16px; }
+    textarea { width: 100%; height: 180px; border: 1px solid #ddd; border-radius: 6px; padding: 10px; font-size: 0.95rem; resize: vertical; }
+    .btn { background: #1a1a2e; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-sm { padding: 4px 12px; font-size: 0.8rem; }
+    .btn-danger { background: #c0392b; }
+    .results { display: grid; grid-template-columns: 1fr 380px; gap: 16px; margin-top: 16px; }
+    .sentence { padding: 8px 12px; border-radius: 4px; margin-bottom: 6px; cursor: pointer; border: 2px solid transparent; }
+    .sentence.risk-0 { background: #f9f9f9; }
+    .sentence.risk-1 { background: #fff9e6; border-color: #f0c040; }
+    .sentence.risk-2 { background: #fff3e0; border-color: #e67e22; }
+    .sentence.risk-3 { background: #fdecea; border-color: #e74c3c; }
+    .sentence.selected { outline: 2px solid #1a1a2e; }
+    .badge { display: inline-block; border-radius: 3px; padding: 1px 7px; font-size: 0.75rem; color: #fff; margin-left: 6px; }
+    .badge-1 { background: #f0c040; color: #333; }
+    .badge-2 { background: #e67e22; }
+    .badge-3 { background: #e74c3c; }
+    .detail-panel { position: sticky; top: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; }
+    th { background: #f5f5f5; font-weight: 600; }
+    input[type=text], input[type=number], select { border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px; font-size: 0.88rem; }
+    .flex { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .tag { background: #e8e8e8; border-radius: 3px; padding: 2px 7px; font-size: 0.78rem; }
+    .suggestion { background: #e8f5e9; border-left: 3px solid #27ae60; padding: 10px 12px; border-radius: 4px; font-size: 0.9rem; margin-top: 8px; }
+    .empty { color: #999; text-align: center; padding: 40px 0; }
+    select.doc-type { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+  </style>
+</head>
+<body x-data="riskApp()" x-init="init()">
+  <nav class="nav">
+    <h1>逐字稿风险审查</h1>
+    <button :class="{active: tab==='review'}" @click="tab='review'">审查</button>
+    <button :class="{active: tab==='wordlist'}" @click="tab='wordlist'; loadWordlist()">词库管理</button>
+    <button :class="{active: tab==='rules'}" @click="tab='rules'; loadRules()">规则管理</button>
+    <button :class="{active: tab==='history'}" @click="tab='history'; loadHistory()">历史记录</button>
+  </nav>
+  <div class="container">
+
+    <!-- 审查 Tab -->
+    <div x-show="tab==='review'">
+      <div class="card">
+        <div class="flex" style="margin-bottom:10px">
+          <select class="doc-type" x-model="docType">
+            <option value="live">直播口播稿</option>
+            <option value="documentary">纪录片剧本</option>
+          </select>
+          <button class="btn" @click="submitReview()" :disabled="loading">
+            <span x-text="loading ? '审查中...' : '开始审查'"></span>
+          </button>
+        </div>
+        <textarea x-model="inputText" placeholder="粘贴逐字稿内容，或直接输入文本..."></textarea>
+      </div>
+      <template x-if="results.length > 0">
+        <div>
+          <div class="card" style="padding:10px 16px; font-size:0.85rem; color:#555">
+            共 <strong x-text="results.length"></strong> 句 ·
+            高风险 <strong style="color:#e74c3c" x-text="results.filter(r=>r.risk_level===3).length"></strong> ·
+            中风险 <strong style="color:#e67e22" x-text="results.filter(r=>r.risk_level===2).length"></strong> ·
+            低风险 <strong style="color:#e0a800" x-text="results.filter(r=>r.risk_level===1).length"></strong>
+          </div>
+          <div class="results">
+            <div>
+              <template x-for="s in results" :key="s.index">
+                <div class="sentence" :class="'risk-'+s.risk_level + (selected?.index===s.index?' selected':'')"
+                     @click="selected=s">
+                  <span x-text="s.text"></span>
+                  <span x-show="s.risk_level===3" class="badge badge-3">高风险</span>
+                  <span x-show="s.risk_level===2" class="badge badge-2">中风险</span>
+                  <span x-show="s.risk_level===1" class="badge badge-1">低风险</span>
+                </div>
+              </template>
+            </div>
+            <div class="detail-panel">
+              <div class="card" x-show="!selected"><p class="empty">点击句子查看详情</p></div>
+              <div class="card" x-show="selected">
+                <template x-if="selected">
+                  <div>
+                    <p style="font-size:0.85rem;color:#666;margin-bottom:8px">第 <span x-text="selected.index+1"></span> 句</p>
+                    <p style="margin-bottom:12px" x-text="selected.text"></p>
+                    <template x-if="selected.matched_words.length > 0">
+                      <div style="margin-bottom:10px">
+                        <strong style="font-size:0.85rem">命中词</strong>
+                        <div class="flex" style="margin-top:4px">
+                          <template x-for="w in selected.matched_words" :key="w.word">
+                            <span class="tag" x-text="w.word + ' (' + w.category + ')'"></span>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <template x-if="selected.triggered_rules.length > 0">
+                      <div style="margin-bottom:10px">
+                        <strong style="font-size:0.85rem">触发规则</strong>
+                        <div class="flex" style="margin-top:4px">
+                          <template x-for="r in selected.triggered_rules" :key="r">
+                            <span class="tag" x-text="r"></span>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                    <template x-if="selected.llm_suggestion">
+                      <div>
+                        <strong style="font-size:0.85rem">改写建议</strong>
+                        <div class="suggestion" x-text="selected.llm_suggestion"></div>
+                      </div>
+                    </template>
+                    <template x-if="selected.llm_confirmed_risk === 'skipped'">
+                      <p style="font-size:0.8rem;color:#999;margin-top:8px">LLM 复核未完成</p>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- 词库管理 Tab -->
+    <div x-show="tab==='wordlist'">
+      <div class="card">
+        <div class="flex" style="margin-bottom:12px">
+          <input type="text" x-model="wlSearch" placeholder="搜索词条..." @input="loadWordlist()" style="width:200px">
+          <button class="btn btn-sm" @click="wlForm={word:'',category:'自定义',risk_level:2,enabled:true}; wlEditing=null; wlShowForm=true">新增词条</button>
+        </div>
+        <template x-if="wlShowForm">
+          <div style="background:#f5f5f5;padding:12px;border-radius:6px;margin-bottom:12px">
+            <div class="flex">
+              <input type="text" x-model="wlForm.word" placeholder="词条">
+              <input type="text" x-model="wlForm.category" placeholder="分类">
+              <select x-model.number="wlForm.risk_level">
+                <option value="1">低风险</option>
+                <option value="2">中风险</option>
+                <option value="3">高风险</option>
+              </select>
+              <button class="btn btn-sm" @click="saveWord()">保存</button>
+              <button class="btn btn-sm" style="background:#aaa" @click="wlShowForm=false">取消</button>
+            </div>
+          </div>
+        </template>
+        <table>
+          <thead><tr><th>词条</th><th>分类</th><th>风险</th><th>来源</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>
+            <template x-for="w in wordlist" :key="w.id">
+              <tr>
+                <td x-text="w.word"></td>
+                <td x-text="w.category"></td>
+                <td><span :class="'badge badge-'+w.risk_level" x-text="['','低','中','高'][w.risk_level]"></span></td>
+                <td x-text="w.source"></td>
+                <td><span x-text="w.enabled?'启用':'禁用'" :style="w.enabled?'color:green':'color:#aaa'"></span></td>
+                <td>
+                  <button class="btn btn-sm" @click="editWord(w)">编辑</button>
+                  <button class="btn btn-sm" @click="toggleWord(w)" x-text="w.enabled?'禁用':'启用'"></button>
+                  <button class="btn btn-sm btn-danger" @click="deleteWord(w.id)">删除</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <p x-show="wordlist.length===0" class="empty">暂无词条</p>
+      </div>
+    </div>
+
+    <!-- 规则管理 Tab -->
+    <div x-show="tab==='rules'">
+      <div class="card">
+        <div class="flex" style="margin-bottom:12px">
+          <button class="btn btn-sm" @click="ruleForm={name:'',description:'',conditions:'',risk_level:2,priority:0}; ruleEditing=null; ruleShowForm=true">新增规则</button>
+        </div>
+        <template x-if="ruleShowForm">
+          <div style="background:#f5f5f5;padding:12px;border-radius:6px;margin-bottom:12px">
+            <div class="flex" style="flex-direction:column;align-items:flex-start">
+              <div class="flex">
+                <input type="text" x-model="ruleForm.name" placeholder="规则名称">
+                <input type="text" x-model="ruleForm.description" placeholder="描述">
+                <select x-model.number="ruleForm.risk_level">
+                  <option value="1">低</option><option value="2">中</option><option value="3">高</option>
+                </select>
+                <input type="number" x-model.number="ruleForm.priority" placeholder="优先级" style="width:70px">
+              </div>
+              <textarea x-model="ruleForm.conditions" placeholder='条件 JSON，例：{"conditions":[{"type":"word_match","words":["根治"],"op":"any"}],"logic":"AND"}' style="height:80px;margin-top:8px;font-family:monospace;font-size:0.82rem"></textarea>
+              <div class="flex" style="margin-top:8px">
+                <button class="btn btn-sm" @click="saveRule()">保存</button>
+                <button class="btn btn-sm" style="background:#aaa" @click="ruleShowForm=false">取消</button>
+              </div>
+            </div>
+          </div>
+        </template>
+        <table>
+          <thead><tr><th>名称</th><th>描述</th><th>风险等级</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>
+            <template x-for="r in rulesList" :key="r.id">
+              <tr>
+                <td x-text="r.name"></td>
+                <td x-text="r.description"></td>
+                <td><span :class="'badge badge-'+r.risk_level" x-text="['','低','中','高'][r.risk_level]"></span></td>
+                <td x-text="r.priority"></td>
+                <td><span x-text="r.enabled?'启用':'禁用'" :style="r.enabled?'color:green':'color:#aaa'"></span></td>
+                <td>
+                  <button class="btn btn-sm" @click="editRule(r)">编辑</button>
+                  <button class="btn btn-sm" @click="toggleRule(r)" x-text="r.enabled?'禁用':'启用'"></button>
+                  <button class="btn btn-sm btn-danger" @click="deleteRule(r.id)">删除</button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <p x-show="rulesList.length===0" class="empty">暂无规则</p>
+      </div>
+    </div>
+
+    <!-- 历史记录 Tab -->
+    <div x-show="tab==='history'">
+      <div class="card">
+        <table>
+          <thead><tr><th>ID</th><th>类型</th><th>时间</th><th>内容预览</th><th>操作</th></tr></thead>
+          <tbody>
+            <template x-for="h in historyList" :key="h.id">
+              <tr>
+                <td x-text="h.id"></td>
+                <td x-text="h.doc_type==='live'?'直播口播':'纪录片'"></td>
+                <td x-text="h.created_at?.slice(0,19)"></td>
+                <td x-text="h.text_preview"></td>
+                <td><button class="btn btn-sm" @click="loadHistoryDetail(h.id)">查看</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <p x-show="historyList.length===0" class="empty">暂无历史记录</p>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
