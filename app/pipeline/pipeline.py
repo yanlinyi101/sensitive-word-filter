@@ -1,6 +1,9 @@
+import logging
 import os
 from typing import List
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 from app.pipeline.preprocessor import preprocess
 from app.pipeline.dfa_matcher import DFAMatcher
 from app.pipeline.rule_engine import RuleEngine
@@ -52,8 +55,10 @@ def run_pipeline(text: str, doc_type: str, db: Session) -> List[SentenceResult]:
 
     to_review = [r for r in results if r.risk_level >= 2]
     if to_review:
-        api_key = os.getenv("GEMINI_API_KEY", "")
+        api_key = os.getenv("DEEPSEEK_API_KEY", "")
         if api_key:
             LLMReviewer(api_key).review(to_review, sentences)
+        else:
+            logger.warning("DEEPSEEK_API_KEY not set, LLM review skipped")
 
     return results

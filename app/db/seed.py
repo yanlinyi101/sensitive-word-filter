@@ -20,7 +20,7 @@ def seed_from_file(db: Session, filepath: str) -> int:
                 continue
             if db.query(WordlistEntry).filter_by(word=word).first():
                 continue
-            db.add(WordlistEntry(word=word, category=category, risk_level=risk_level, source="houbb"))
+            db.add(WordlistEntry(word=word, category=category, risk_level=risk_level, source="词库"))
             count += 1
     db.commit()
     return count
@@ -29,7 +29,7 @@ def run_seed():
     from app.db.database import SessionLocal, init_db
     init_db()
     db = SessionLocal()
-    base_path = os.path.join(os.path.dirname(__file__), "../../wordlist/houbb_base.txt")
+    base_path = os.path.join(os.path.dirname(__file__), "../../wordlist/词库.txt")
     n = seed_from_file(db, os.path.abspath(base_path))
     print(f"Seeded {n} words.")
     db.close()

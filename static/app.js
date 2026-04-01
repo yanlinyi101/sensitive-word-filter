@@ -2,12 +2,35 @@ function riskApp() {
   return {
     tab: 'review',
     inputText: '', docType: 'live', loading: false,
-    results: [], selected: null,
+    results: [], selected: null, showModal: false,
     wordlist: [], wlSearch: '', wlShowForm: false, wlForm: {}, wlEditing: null,
     rulesList: [], ruleShowForm: false, ruleForm: {}, ruleEditing: null,
     historyList: [],
 
     init() {},
+
+    jumpToResults() {
+      this.showModal = false;
+      this.$nextTick(() => {
+        document.getElementById('result-summary')?.scrollIntoView({ behavior: 'smooth' });
+      });
+    },
+
+    highlightWords(text, matchedWords) {
+      const esc = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      if (!matchedWords || matchedWords.length === 0) return esc;
+      const words = [...new Set(matchedWords.map(m => m.word))]
+        .sort((a, b) => b.length - a.length);
+      let result = esc;
+      for (const w of words) {
+        const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        result = result.replace(
+          new RegExp(escaped, 'g'),
+          `<strong><u style="color:#e74c3c;text-decoration-color:#e74c3c">${w}</u></strong>`
+        );
+      }
+      return result;
+    },
 
     async submitReview() {
       if (!this.inputText.trim()) return;
@@ -20,6 +43,7 @@ function riskApp() {
         });
         const data = await resp.json();
         this.results = data.sentences || [];
+        if (this.results.length > 0) this.showModal = true;
       } finally { this.loading = false; }
     },
 
@@ -36,8 +60,10 @@ function riskApp() {
     async saveWord() {
       const url = this.wlEditing ? `/api/wordlist/${this.wlEditing}` : '/api/wordlist';
       const method = this.wlEditing ? 'PUT' : 'POST';
+      const savedWord = this.wlForm.word;
       await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.wlForm)});
       this.wlShowForm = false; this.wlEditing = null;
+      this.wlSearch = savedWord;
       await this.loadWordlist();
     },
 

@@ -6,3 +6,11 @@ __pycache__/
 *.egg-info/
 dist/
 .DS_Store
+# 部署脚本含服务器 IP / 私钥路径，不入库
+deploy.py
+# Claude 工作目录
+.claude/
+# 自定义词库
+wordlist/词库.txt
+词库/
+scripts/import_词库.py

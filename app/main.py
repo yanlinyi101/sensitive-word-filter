@@ -75,4 +75,4 @@ def index():
     if not os.path.exists(index_path):
         from fastapi.responses import JSONResponse
         return JSONResponse({"error": "Frontend not built"}, status_code=404)
-    return FileResponse(index_path)
+    return FileResponse(index_path, headers={"Cache-Control": "no-cache"})

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>逐字稿风险审查工具</title>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
@@ -41,6 +41,12 @@
     .suggestion { background: #e8f5e9; border-left: 3px solid #27ae60; padding: 10px 12px; border-radius: 4px; font-size: 0.9rem; margin-top: 8px; }
     .empty { color: #999; text-align: center; padding: 40px 0; }
     select.doc-type { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+    .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center; }
+    .modal-box { background:#fff;border-radius:10px;padding:28px 32px;min-width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2); }
+    .modal-box h2 { font-size:1.15rem;margin-bottom:16px; }
+    .modal-stats { display:flex;gap:24px;justify-content:center;margin-bottom:20px;font-size:0.95rem; }
+    .modal-stats .stat-val { font-size:1.6rem;font-weight:700; }
+    .modal-actions { display:flex;gap:10px;justify-content:center; }
   </style>
 </head>
 <body x-data="riskApp()" x-init="init()">
@@ -69,7 +75,7 @@
       </div>
       <template x-if="results.length > 0">
         <div>
-          <div class="card" style="padding:10px 16px; font-size:0.85rem; color:#555">
+          <div id="result-summary" class="card" style="padding:10px 16px; font-size:0.85rem; color:#555">
             共 <strong x-text="results.length"></strong> 句 ·
             高风险 <strong style="color:#e74c3c" x-text="results.filter(r=>r.risk_level===3).length"></strong> ·
             中风险 <strong style="color:#e67e22" x-text="results.filter(r=>r.risk_level===2).length"></strong> ·
@@ -80,7 +86,7 @@
               <template x-for="s in results" :key="s.index">
                 <div class="sentence" :class="'risk-'+s.risk_level + (selected?.index===s.index?' selected':'')"
                      @click="selected=s">
-                  <span x-text="s.text"></span>
+                  <span x-html="highlightWords(s.text, s.matched_words)"></span>
                   <span x-show="s.risk_level===3" class="badge badge-3">高风险</span>
                   <span x-show="s.risk_level===2" class="badge badge-2">中风险</span>
                   <span x-show="s.risk_level===1" class="badge badge-1">低风险</span>
@@ -93,7 +99,7 @@
                 <template x-if="selected">
                   <div>
                     <p style="font-size:0.85rem;color:#666;margin-bottom:8px">第 <span x-text="selected.index+1"></span> 句</p>
-                    <p style="margin-bottom:12px" x-text="selected.text"></p>
+                    <p style="margin-bottom:12px" x-html="highlightWords(selected.text, selected.matched_words)"></p>
                     <template x-if="selected.matched_words.length > 0">
                       <div style="margin-bottom:10px">
                         <strong style="font-size:0.85rem">命中词</strong>
@@ -246,6 +252,35 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- 审查完毕弹窗 -->
+  <div class="modal-overlay" x-show="showModal" x-transition>
+    <div class="modal-box">
+      <h2>审查完毕</h2>
+      <div class="modal-stats">
+        <div>
+          <div class="stat-val" x-text="results.length"></div>
+          <div>共 N 句</div>
+        </div>
+        <div style="color:#e74c3c">
+          <div class="stat-val" x-text="results.filter(r=>r.risk_level===3).length"></div>
+          <div>高风险</div>
+        </div>
+        <div style="color:#e67e22">
+          <div class="stat-val" x-text="results.filter(r=>r.risk_level===2).length"></div>
+          <div>中风险</div>
+        </div>
+        <div style="color:#e0a800">
+          <div class="stat-val" x-text="results.filter(r=>r.risk_level===1).length"></div>
+          <div>低风险</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" @click="jumpToResults()">跳转至审查结果</button>
+        <button class="btn" style="background:#aaa" @click="showModal=false">关闭</button>
+      </div>
+    </div>
   </div>
 </body>
 </html>
